@@ -1,17 +1,17 @@
 <script lang="ts">
 	import Input from '$lib/components/Input.svelte';
+	import Slider from '$lib/components/Slider.svelte';
 	import Toggle from '$lib/components/Toggle.svelte';
 
 	let showUrl = $state('');
 	let showWindow = $state(false);
 	let isLoading = $state(false);
 	let serverResponse = $state('');
-	let users = $state(0);
+	let count = $state(1);
 
 	async function runBatchAutomation() {
 		isLoading = true;
 		serverResponse = 'Sending request to start batch...';
-		users += 4;
 
 		try {
 			const response = await fetch('/api/show', {
@@ -19,7 +19,7 @@
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ showUrl, showWindow })
+				body: JSON.stringify({ showUrl, count, showWindow })
 			});
 
 			const result = await response.json();
@@ -31,7 +31,6 @@
 			serverResponse = result.message;
 		} catch (error: any) {
 			serverResponse = `Error: ${error.message}`;
-		} finally {
 			isLoading = false;
 		}
 	}
@@ -44,12 +43,14 @@
 
 	<Toggle label="Show Browser Window?" id="showWindow" bind:value={showWindow} />
 
+	<Slider bind:value={count} disabled={isLoading} />
+
 	<button onclick={runBatchAutomation} disabled={isLoading}>
-		{isLoading ? '🤖 Starting...' : 'Start Automation Batch'}
+		{isLoading ? (serverResponse ? '🎭 In Show' : '🤖 Starting...') : 'Join Show'}
 	</button>
 
 	{#if serverResponse}
-		<pre class="response">{serverResponse} for {users} users</pre>
+		<pre class="response">{serverResponse} for {count} user{count == 1 ? '' : 's'}</pre>
 	{/if}
 </main>
 
@@ -96,8 +97,6 @@
 	.response {
 		margin-top: 1.5rem;
 		padding: 1rem;
-		background-color: #f4f4f4;
-		border: 1px solid #ddd;
 		border-radius: 4px;
 		white-space: pre-wrap;
 	}

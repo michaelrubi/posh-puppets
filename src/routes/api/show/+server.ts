@@ -15,7 +15,7 @@ for (const user of usernames) {
     }
 }
 
-async function runAutomationBatch(showUrl: string, headless: boolean) {
+async function runAutomationBatch(showUrl: string, users: User[], headless: boolean) {
     console.log('🚀 Starting background automation batch...');
 
     for (const user of users) {
@@ -36,16 +36,31 @@ async function runAutomationBatch(showUrl: string, headless: boolean) {
     console.log('✅ Background automation batch finished.');
 }
 
+function getUsers(count: number, users: User[]): User[] {
+    const puppets = [];
+    for (let i = 0; i < count; i++) {
+        if (i < users.length) {
+            puppets.push(users[i])
+        } else {
+            const mod = i % users.length;
+            puppets.push(users[mod])
+        }
+    }
+    return puppets;
+}
+
 
 export async function POST({ request }: { request: Request }) {
     try {
-        const { showUrl, showWindow } = await request.json();
+        const { showUrl, count, showWindow } = await request.json();
 
         if (!showUrl || typeof showWindow !== 'boolean') {
             return json({ message: 'Invalid input.' }, { status: 400 });
         }
 
-        runAutomationBatch(showUrl, !showWindow);
+        const puppets = getUsers(count, users);
+
+        runAutomationBatch(showUrl, puppets, !showWindow);
 
         const time = new Date();
 
