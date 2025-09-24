@@ -66,6 +66,7 @@ export async function POST({ request }: { request: Request }) {
 
         return json({ message: `Automation batch process has been started at ${time}` });
 
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
         return json({ message: 'Failed to parse request body.' }, { status: 400 });
     }

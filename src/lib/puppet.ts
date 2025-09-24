@@ -32,12 +32,29 @@ export class Puppet {
         await page.fill('#login_form_username_email', this.posher.name);
         await page.fill('#login_form_password', this.posher.password);
         await page.click('button.btn');
+        await this.fillOTP();
         await page.waitForURL('**/feed**');
         await page.goto(showUrl);
         await page.waitForURL(showUrl);
-
         if (page.url() == showUrl) this.navigateAway(showUrl);
+    }
 
+    async fillOTP() {
+        const page = this.page;
+        if (!page) return;
+        const input = '[data-test="text-input"][name="otp"]';
+        await page.waitForSelector(input);
+        const otp = await fetch(`https://n8n.biztosite.com/webhook/8b2bbec9-4e17-413f-809b-e2308ff3b092?name=${this.posher.name.toLowerCase()}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        if (!otp.ok) throw new Error('Failed to fetch OTP');
+        const otpJson = await otp.json();
+        const otpCode: string = otpJson.code;
+        await page.click(input);
+        await page.fill(input, otpCode);
+        const submitButton = page.getByRole('button', { name: 'Done' });
+        await submitButton.click();
     }
 
     navigateAway(showUrl: string) {
