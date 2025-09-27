@@ -1,4 +1,6 @@
-import { chromium, type Browser, type Page } from 'playwright';
+import { type Browser, type Page, type Locator } from 'playwright';
+import { chromium } from 'playwright-extra';
+import stealth from 'puppeteer-extra-plugin-stealth';
 import { User } from './';
 
 interface Posher {
@@ -18,8 +20,12 @@ export class Puppet {
     }
 
     async init() {
+        chromium.use(stealth())
         this.browser = await chromium.launch({ headless: this.headless });
-        const context = await this.browser.newContext();
+        const context = await this.browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36'
+        });
         this.page = await context.newPage();
         if (!this.page) throw new Error('Failed to create new page');
     }
@@ -29,11 +35,39 @@ export class Puppet {
         if (!page) return;
 
         await page.goto('https://poshmark.com/login');
-        await page.fill('#login_form_username_email', this.posher.name);
-        await page.fill('#login_form_password', this.posher.password);
-        await page.click('button.btn');
-        await this.fillOTP();
-        await page.waitForURL('**/feed**');
+        const usernameInput = page.locator('#login_form_username_email');
+        await this.typing(usernameInput, this.posher.name);
+        const passwordInput = page.locator('#login_form_password');
+        await this.typing(passwordInput, this.posher.password);
+        await page.getByRole('button', { name: /Login/i }).click();
+
+        try {
+            // Wait for the OTP modal to appear
+            await page.waitForSelector('[name="otp"]', { timeout: 10000 });
+
+            // Call the simple OTP function with the built-in delay
+            await this.fillOTP();
+
+            // After submitting, wait for either success or a known error
+            console.log('OTP submitted. Waiting for page to redirect...');
+            await Promise.race([
+                page.waitForURL('**/feed**', { timeout: 15000 }),
+                page.locator('text="Whoops! Please check your verification code"').waitFor({ timeout: 15000 })
+            ]);
+
+            // If the URL didn't change to the feed, it means the error appeared
+            if (!page.url().includes('/feed')) {
+                throw new Error('Detected an error message after OTP submission.');
+            }
+
+        } catch (error) {
+            console.error("Login process failed.", error);
+            await this.screenshot('debug-login-failure');
+            await this.close();
+            throw error;
+        }
+
+        console.log('✅ Successfully logged in and redirected to feed.');
         await page.goto(showUrl);
         await page.waitForURL(showUrl);
         if (page.url() == showUrl) this.navigateAway(showUrl);
@@ -42,19 +76,21 @@ export class Puppet {
     async fillOTP() {
         const page = this.page;
         if (!page) return;
-        const input = '[data-test="text-input"][name="otp"]';
-        await page.waitForSelector(input);
-        const otp = await fetch(`https://n8n.biztosite.com/webhook/8b2bbec9-4e17-413f-809b-e2308ff3b092?name=${this.posher.name.toLowerCase()}`, {
+
+        console.log('Waiting for 5 seconds for new OTP to arrive...');
+        await page.waitForTimeout(5000); // 5-second delay
+
+        const otpResponse = await fetch(`https://n8n.biztosite.com/webhook/8b2bbec9-4e17-413f-809b-e2308ff3b092?name=${this.posher.name.toLowerCase()}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
         });
-        if (!otp.ok) throw new Error('Failed to fetch OTP');
-        const otpJson = await otp.json();
+
+        if (!otpResponse.ok) throw new Error('Failed to fetch OTP');
+        const otpJson = await otpResponse.json();
         const otpCode: string = otpJson.code;
-        await page.click(input);
-        await page.fill(input, otpCode);
-        const submitButton = page.getByRole('button', { name: 'Done' });
-        await submitButton.click();
+
+        await page.locator('[name="otp"]').fill(otpCode);
+        await page.getByRole('button', { name: 'Done' }).click();
     }
 
     navigateAway(showUrl: string) {
@@ -80,10 +116,18 @@ export class Puppet {
         }
     }
 
-    async screenshot() {
+    async screenshot(filename?: string) {
+        const path = filename ? `${filename}.png` : `${this.posher.name}.png`;
+        console.log('📸 Taking screenshot:', path);
         if (this.page && !this.page.isClosed()) {
             await this.page.waitForSelector('body');
-            await this.page.screenshot({ path: `${this.posher.name}.png`, fullPage: true });
+            await this.page.screenshot({ path, fullPage: true });
+        }
+    }
+
+    async typing(locator: Locator, text: string) {
+        for (const char of text) {
+            await locator.press(char, { delay: 50 + Math.random() * 100 });
         }
     }
 }
