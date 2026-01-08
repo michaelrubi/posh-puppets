@@ -2,6 +2,7 @@ import { type Browser, type Page, type Locator } from 'playwright';
 import { chromium } from 'playwright-extra';
 import stealth from 'puppeteer-extra-plugin-stealth';
 import { User } from './';
+const api = import.meta.env.VITE_API;
 
 interface Posher {
     name: string;
@@ -74,13 +75,14 @@ export class Puppet {
     }
 
     async fillOTP() {
+        const delayInSeconds = 5;
         const page = this.page;
         if (!page) return;
 
-        console.log('Waiting for 5 seconds for new OTP to arrive...');
-        await page.waitForTimeout(5000); // 5-second delay
+        console.log(`Waiting for ${delayInSeconds} seconds for new OTP to arrive...`);
+        await page.waitForTimeout(delayInSeconds * 1000);
 
-        const otpResponse = await fetch(`https://n8n.biztosite.com/webhook/8b2bbec9-4e17-413f-809b-e2308ff3b092?name=${this.posher.name.toLowerCase()}`, {
+        const otpResponse = await fetch(`${api}${this.posher.name.toLowerCase()}`, {
             method: 'GET',
             headers: { 'Content-Type': 'application/json' },
         });
